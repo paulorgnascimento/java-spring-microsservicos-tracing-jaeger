@@ -11,6 +11,9 @@ import com.paulorgnascimento.cleanarchitecture.infrastructure.persistence.entity
 import com.paulorgnascimento.cleanarchitecture.infrastructure.persistence.entity.EntidadeMapping;
 import com.paulorgnascimento.cleanarchitecture.infrastructure.persistence.repository.AgregadoRepository;
 import com.paulorgnascimento.cleanarchitecture.infrastructure.persistence.repository.EntidadeRepository;
+import io.opentracing.Span;
+import io.opentracing.Tracer;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +27,8 @@ public class AgregadoServiceImpl implements AgregadoService {
     private final AgregadoRepository agregadoRepository;
     private final EntidadeRepository entidadeRepository;
     private final IntegracaoService integracaoService;
+    @Autowired
+    private Tracer tracer;
 
     public AgregadoServiceImpl(AgregadoMapper agregadoMapper,
                                EntidadeMapper entidadeMapper,
@@ -40,11 +45,36 @@ public class AgregadoServiceImpl implements AgregadoService {
     @Override
     @Transactional
     public void criarAgregado(AgregadoInDto agregadoInDto) {
-        Integracao integracao = integracaoService.execute(1);
-        Agregado agregado = agregadoMapper.fromDto(agregadoInDto);
-        AgregadoMapping agregadoMapping = agregadoMapper.toEntity(agregado);
-        agregadoRepository.save(agregadoMapping);
-        salvarEntidades(agregadoInDto, agregadoMapping);
+
+        Agregado agregado;
+        AgregadoMapping agregadoMapping;
+
+        Span span_integration = tracer.buildSpan("service-integration").start();
+        
+        span_integration.setTag("tag_personalizada", "algum valor");
+        try {
+            Integracao integracao = integracaoService.execute(1);
+        } finally {
+            span_integration.finish();
+        }
+
+        Span span_mappings = tracer.buildSpan("service-mappings").start();
+        try {
+            agregado = agregadoMapper.fromDto(agregadoInDto);
+            agregadoMapping = agregadoMapper.toEntity(agregado);
+        }
+        finally {
+            span_mappings.finish();
+        }
+
+        Span span_persistence = tracer.buildSpan("service-persistence").start();
+        try {
+            agregadoRepository.save(agregadoMapping);
+            salvarEntidades(agregadoInDto, agregadoMapping);
+        } finally {
+            span_persistence.finish();
+        }
+
     }
 
     private void salvarEntidades(AgregadoInDto agregadoInDto, AgregadoMapping agregadoMapping) {

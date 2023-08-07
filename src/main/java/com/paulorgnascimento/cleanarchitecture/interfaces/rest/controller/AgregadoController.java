@@ -4,10 +4,12 @@ import com.paulorgnascimento.cleanarchitecture.application.dto.AgregadoOutDto;
 import com.paulorgnascimento.cleanarchitecture.domain.aggregateroot.Agregado;
 import com.paulorgnascimento.cleanarchitecture.application.dto.AgregadoInDto;
 import com.paulorgnascimento.cleanarchitecture.application.services.AgregadoService;
+import io.opentracing.Span;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import io.opentracing.Tracer;
 
 @RestController
 @RequestMapping("/agregados")
@@ -19,11 +21,18 @@ public class AgregadoController {
     public AgregadoController(AgregadoService agregadoService) {
         this.agregadoService = agregadoService;
     }
+    @Autowired
+    private Tracer tracer;
 
     @PostMapping
     public ResponseEntity<Agregado> criarAgregado(@RequestBody AgregadoInDto agregadoInDto) {
-        agregadoService.criarAgregado(agregadoInDto);
-        return new ResponseEntity<>(HttpStatus.CREATED);
+        Span span = tracer.buildSpan("controller-criandoAgregado").start();
+        try {
+            agregadoService.criarAgregado(agregadoInDto);
+            return new ResponseEntity<>(HttpStatus.CREATED);
+        } finally {
+            span.finish();
+        }
     }
 
     @GetMapping("/{id}")
